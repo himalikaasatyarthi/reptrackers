@@ -1,5 +1,6 @@
 {
-  "description": "Helps users track wellness with a BMI calculator, body type assessment, chatbot guidance, and other tools for personalized health insights.",
+  "title": "Rep Trackers",
+  "description": "A static wellbeing page with a BMI check, movement mix, meal ideas, on-device habits, and a companion that can optionally call your own model.",
   "robots": {
     "index": false
   },

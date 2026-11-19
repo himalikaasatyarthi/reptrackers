@@ -1,207 +1,59 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState, type ReactNode } from "react";
+import { SAMPLE_CHALLENGE_JOINED, SAMPLE_PLEDGE_COUNT } from "@/data/board";
+import {
+  articleById,
+  articles,
+  docById,
+  docs,
+  gallery,
+  values,
+  type Block,
+} from "@/data/library";
+import { Icon } from "@/icons";
+import {
+  assessBmi,
+  formatWeight,
+  imperialToMetric,
+  metricToImperial,
+  parseMeasurement,
+  toMetric,
+  type UnitSystem,
+} from "@/lib/bmi";
+import { localAnswer, SUGGESTED_PROMPTS } from "@/lib/companion";
+import {
+  VARIANT_COUNT,
+  buildDay,
+  formatMealPlanText,
+  type ActivityLevel,
+  type DietGoal,
+  type DietPreference,
+} from "@/lib/diet";
+import {
+  mixFromCheck,
+  readSilhouette,
+  type Build,
+  type Change,
+  type FrameAnswers,
+  type Silhouette,
+} from "@/lib/frame";
+import {
+  PROVIDER_PRESETS,
+  askModel,
+  explainModelError,
+  type LLMProviderId,
+} from "@/lib/model";
+import {
+  ACTIONS,
+  exportProgressJson,
+  getHabitTier,
+  importProgressJson,
+  leaders,
+  rankSummary,
+  todayKey,
+} from "@/lib/progress";
+import { StoreProvider, useStore, type ToolId } from "@/store";
 
-type IconName =
-  | "arrow"
-  | "bars"
-  | "body"
-  | "brain"
-  | "calculator"
-  | "camera"
-  | "check"
-  | "chevron"
-  | "close"
-  | "heart"
-  | "leaf"
-  | "medal"
-  | "message"
-  | "shield"
-  | "spark"
-  | "target"
-  | "upload"
-  | "users";
-
-function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  const paths: Record<IconName, React.ReactNode> = {
-    arrow: (
-      <>
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </>
-    ),
-    bars: (
-      <>
-        <path d="M4 7h16M4 12h16M4 17h16" />
-      </>
-    ),
-    body: (
-      <>
-        <circle cx="12" cy="4.5" r="2.5" />
-        <path d="M8.5 10c1.2-1.5 2.3-2 3.5-2s2.3.5 3.5 2M9 9.5l-1 5 2 2-.5 5M15 9.5l1 5-2 2 .5 5" />
-      </>
-    ),
-    brain: (
-      <>
-        <path d="M9.5 4.5A3 3 0 0 0 5 7a3 3 0 0 0-1 5.8A3.5 3.5 0 0 0 8 18a3 3 0 0 0 4 1.5V6a3 3 0 0 0-2.5-1.5Z" />
-        <path d="M14.5 4.5A3 3 0 0 1 19 7a3 3 0 0 1 1 5.8 3.5 3.5 0 0 1-4 5.2 3 3 0 0 1-4 1.5M8 9.5c0 1.5 1 2.5 2.5 2.5M16 9.5c0 1.5-1 2.5-2.5 2.5" />
-      </>
-    ),
-    calculator: (
-      <>
-        <rect x="5" y="3" width="14" height="18" rx="2" />
-        <path d="M8 7h8M8 11h1M12 11h1M16 11h1M8 15h1M12 15h1M16 15h1M8 18h1M12 18h5" />
-      </>
-    ),
-    camera: (
-      <>
-        <path d="M4 8h3l1.5-2h7L17 8h3v11H4Z" />
-        <circle cx="12" cy="13.5" r="3.5" />
-      </>
-    ),
-    check: (
-      <>
-        <path d="m5 12 4 4L19 6" />
-      </>
-    ),
-    chevron: (
-      <>
-        <path d="m8 10 4 4 4-4" />
-      </>
-    ),
-    close: (
-      <>
-        <path d="M6 6l12 12M18 6 6 18" />
-      </>
-    ),
-    heart: (
-      <>
-        <path d="M20.8 5.8a5.4 5.4 0 0 0-7.6 0L12 7l-1.2-1.2a5.4 5.4 0 1 0-7.6 7.6L12 22l8.8-8.6a5.4 5.4 0 0 0 0-7.6Z" />
-      </>
-    ),
-    leaf: (
-      <>
-        <path d="M20 4C10 4 5 9 5 16c5 0 10-2 12-7-1 5-4 8-9 10" />
-      </>
-    ),
-    medal: (
-      <>
-        <circle cx="12" cy="14" r="5" />
-        <path d="m8 3 4 6 4-6M9.5 14l1.6 1.3 3-3" />
-      </>
-    ),
-    message: (
-      <>
-        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z" />
-      </>
-    ),
-    shield: (
-      <>
-        <path d="M12 3 4.5 6v5.5c0 4.7 3.2 8 7.5 9.5 4.3-1.5 7.5-4.8 7.5-9.5V6Z" />
-        <path d="m9 12 2 2 4-4" />
-      </>
-    ),
-    spark: (
-      <>
-        <path d="m12 2 1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5ZM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7Z" />
-      </>
-    ),
-    target: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <circle cx="12" cy="12" r="5" />
-        <circle cx="12" cy="12" r="1" />
-      </>
-    ),
-    upload: (
-      <>
-        <path d="M12 16V4m0 0L7 9m5-5 5 5M5 14v6h14v-6" />
-      </>
-    ),
-    users: (
-      <>
-        <circle cx="9" cy="8" r="3" />
-        <path d="M3 20c0-4 2.7-7 6-7s6 3 6 7M16 5.5a3 3 0 0 1 0 5.5M17 14c2.4.7 4 3 4 6" />
-      </>
-    ),
-  };
-  return <svg {...common}>{paths[name]}</svg>;
-}
-
-const navItems = [
-  { label: "Introduction", href: "#about" },
-  { label: "Features & tools", href: "#tools", dropdown: true },
-  { label: "Diet suggestion", href: "#articles" },
-  { label: "Leaderboard", href: "#leaderboard" },
-  { label: "Articles", href: "#articles" },
-  { label: "More", href: "#more", dropdown: true },
-];
-
-const values = [
-  ["Care first", "Health guidance should feel humane, encouraging and stigma-free.", "heart"],
-  ["Small wins", "We turn overwhelming goals into steady, achievable daily actions.", "target"],
-  ["Built for all", "Every body, routine and starting point deserves thoughtful support.", "users"],
-] as const;
-
-const gallery = [
-  {
-    letter: "F",
-    title: "Find your pace",
-    caption: "Movement that meets you where you are.",
-    tone: "coral",
-    icon: "target",
-  },
-  {
-    letter: "I",
-    title: "Invest in rest",
-    caption: "Recovery is a vital part of progress.",
-    tone: "blue",
-    icon: "heart",
-  },
-  {
-    letter: "T",
-    title: "Train with joy",
-    caption: "Consistency grows when movement feels good.",
-    tone: "gold",
-    icon: "spark",
-  },
-  {
-    letter: "N",
-    title: "Nourish daily",
-    caption: "Simple food choices, never rigid rules.",
-    tone: "mint",
-    icon: "leaf",
-  },
-  {
-    letter: "E",
-    title: "Ease your mind",
-    caption: "Pause, breathe and make room to reset.",
-    tone: "violet",
-    icon: "brain",
-  },
-  {
-    letter: "S",
-    title: "Support others",
-    caption: "Health gets better when we do it together.",
-    tone: "rose",
-    icon: "users",
-  },
-] as const;
-
-const leaderboard = [
-  { name: "Mira S.", points: 2480, streak: 18, initials: "MS" },
-  { name: "Aarav K.", points: 2320, streak: 14, initials: "AK" },
-  { name: "Naina R.", points: 2185, streak: 12, initials: "NR" },
-  { name: "Dev P.", points: 1960, streak: 11, initials: "DP" },
-];
+const CHAT_KEY = "reptrackers.chat.v2";
 
 function Logo() {
   return (
@@ -217,26 +69,79 @@ function Logo() {
 }
 
 function Header() {
-  const [open, setOpen] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const [drop, setDrop] = useState<"tools" | "more" | null>(null);
+  function shut() {
+    setMenu(false);
+    setDrop(null);
+  }
   return (
     <header className="site-header">
       <div className="nav-shell">
         <Logo />
         <button
           className="menu-button"
-          onClick={() => setOpen(!open)}
+          type="button"
+          onClick={() => setMenu((open) => !open)}
           aria-label="Toggle navigation"
-          aria-expanded={open}
+          aria-expanded={menu}
         >
-          <Icon name={open ? "close" : "bars"} />
+          <Icon name={menu ? "close" : "bars"} />
         </button>
-        <nav className={open ? "main-nav is-open" : "main-nav"} aria-label="Main navigation">
-          {navItems.map((item) => (
-            <a key={item.label} href={item.href} onClick={() => setOpen(false)}>
-              {item.label}
-              {item.dropdown && <Icon name="chevron" size={14} />}
-            </a>
-          ))}
+        <nav className={menu ? "main-nav is-open" : "main-nav"} aria-label="Main navigation">
+          <a href="#about" onClick={shut}>
+            Introduction
+          </a>
+          <div className={drop === "tools" ? "nav-drop is-open" : "nav-drop"}>
+            <button
+              className="nav-link"
+              type="button"
+              aria-expanded={drop === "tools"}
+              onClick={() => setDrop((current) => (current === "tools" ? null : "tools"))}
+            >
+              Features & tools <Icon name="chevron" size={14} />
+            </button>
+            <div className="nav-menu">
+              <a href="#tool-bmi" onClick={shut}>
+                BMI calculator
+              </a>
+              <a href="#tool-body" onClick={shut}>
+                Body movement mix
+              </a>
+              <a href="#tool-diet" onClick={shut}>
+                Diet suggestion
+              </a>
+              <a href="#tool-chat" onClick={shut}>
+                Wellness chat
+              </a>
+            </div>
+          </div>
+          <a href="#tool-diet" onClick={shut}>
+            Diet suggestion
+          </a>
+          <a href="#leaderboard" onClick={shut}>
+            Leaderboard
+          </a>
+          <a href="#articles" onClick={shut}>
+            Articles
+          </a>
+          <div className={drop === "more" ? "nav-drop is-open" : "nav-drop"}>
+            <button
+              className="nav-link"
+              type="button"
+              aria-expanded={drop === "more"}
+              onClick={() => setDrop((current) => (current === "more" ? null : "more"))}
+            >
+              Trust & Docs <Icon name="chevron" size={14} />
+            </button>
+            <div className="nav-menu">
+              {docs.map((doc) => (
+                <a key={doc.id} href={`#doc-${doc.id}`} onClick={shut}>
+                  {doc.title}
+                </a>
+              ))}
+            </div>
+          </div>
         </nav>
         <a className="nav-cta" href="#pledge">
           Take the pledge
@@ -247,20 +152,24 @@ function Header() {
 }
 
 function HeroArt() {
+  const { loggedToday, progress } = useStore();
+  const energy = (6 + loggedToday.length * 0.8).toFixed(1);
   return (
     <div className="hero-art" aria-label="Illustration of an active community">
       <div className="sun" />
       <div className="orbit orbit-one" />
       <div className="orbit orbit-two" />
       <div className="art-card stat-card">
-        <span>Today’s energy</span>
-        <strong>8.4</strong>
+        <span title="Starts at 6.0 and rises by 0.8 for each action logged today on this device.">
+          Today’s energy
+        </span>
+        <strong>{energy}</strong>
         <div className="mini-bars">
-          <i />
-          <i />
-          <i />
-          <i />
-          <i />
+          <i style={{ opacity: loggedToday.length > 0 ? 1 : undefined }} />
+          <i style={{ opacity: loggedToday.length > 1 ? 1 : 0.35 }} />
+          <i style={{ opacity: loggedToday.length > 2 ? 1 : 0.35 }} />
+          <i style={{ opacity: loggedToday.length > 3 ? 1 : 0.35 }} />
+          <i style={{ opacity: loggedToday.length > 4 ? 1 : 0.35 }} />
         </div>
       </div>
       <div className="art-card habit-card">
@@ -269,7 +178,7 @@ function HeroArt() {
         </span>
         <div>
           <strong>Daily check-in</strong>
-          <span>4 day rhythm</span>
+          <span>{progress.streak > 0 ? `${progress.streak} day rhythm` : "Log one action"}</span>
         </div>
       </div>
       <div className="person person-one">
@@ -310,7 +219,7 @@ function About() {
           <h3>Our mission</h3>
           <p>
             Make practical, preventive health guidance easy to understand and easier to act on—for
-            students, families and communities.
+            students, families and communities with complete privacy.
           </p>
         </article>
         <article className="purpose-card">
@@ -321,7 +230,7 @@ function About() {
           <h3>Our vision</h3>
           <p>
             A world where everyone has the confidence, tools and support to build a healthier life
-            on their own terms.
+            on their own terms, without shame or rigid dogma.
           </p>
         </article>
         <div className="values-list">
@@ -344,6 +253,11 @@ function About() {
 }
 
 function Gallery() {
+  const { logAction, loggedToday } = useStore();
+  const [open, setOpen] = useState<string | null>(null);
+  const guide = gallery.find((item) => item.letter === open);
+  const action = ACTIONS.find((item) => item.id === guide?.action);
+  const logged = guide ? loggedToday.includes(guide.action) : false;
   return (
     <section className="gallery-section section" aria-labelledby="gallery-title">
       <div className="section-heading">
@@ -366,31 +280,80 @@ function Gallery() {
             <div>
               <h3>{item.title}</h3>
               <p>{item.caption}</p>
+              <button
+                className="gallery-open"
+                type="button"
+                aria-expanded={open === item.letter}
+                onClick={() => setOpen((current) => (current === item.letter ? null : item.letter))}
+              >
+                {open === item.letter ? "Hide practice" : "Try this"}
+              </button>
             </div>
           </article>
         ))}
       </div>
+      {guide && action && (
+        <div className="gallery-detail">
+          <div>
+            <strong>{guide.title}</strong>
+            <p>{guide.practice}</p>
+          </div>
+          <button type="button" disabled={logged} onClick={() => logAction(guide.action)}>
+            {logged ? "Logged today ✓" : `Log it · +${action.points} pts`}
+          </button>
+          <a className="primary-button compact" href={`#tool-${guide.tool}`}>
+            Open tool <Icon name="arrow" />
+          </a>
+        </div>
+      )}
     </section>
   );
 }
 
 function BmiTool() {
+  const { logAction, loggedToday } = useStore();
+  const [unit, setUnit] = useState<UnitSystem>("metric");
   const [height, setHeight] = useState("170");
   const [weight, setWeight] = useState("65");
-  const bmi = useMemo(() => {
-    const h = Number(height) / 100;
-    const w = Number(weight);
-    return h > 0 && w > 0 ? w / (h * h) : 0;
-  }, [height, weight]);
-  const category =
-    bmi < 18.5
-      ? "Below healthy range"
-      : bmi < 25
-        ? "Healthy range"
-        : bmi < 30
-          ? "Above healthy range"
-          : "High range";
-  const position = Math.min(94, Math.max(4, ((bmi - 14) / 24) * 100));
+  const [feet, setFeet] = useState("5");
+  const [inches, setInches] = useState("7");
+  const [pounds, setPounds] = useState("143");
+
+  function handleUnitToggle(nextUnit: UnitSystem) {
+    if (nextUnit === unit) return;
+    if (nextUnit === "imperial") {
+      const h = parseMeasurement(height);
+      const w = parseMeasurement(weight);
+      if (h !== null && w !== null) {
+        const imp = metricToImperial(h, w);
+        setFeet(imp.feet);
+        setInches(imp.inches);
+        setPounds(imp.pounds);
+      }
+    } else {
+      const f = parseMeasurement(feet);
+      const i = parseMeasurement(inches);
+      const p = parseMeasurement(pounds);
+      if (f !== null && i !== null && p !== null) {
+        const met = imperialToMetric(f, i, p);
+        setHeight(met.heightCm);
+        setWeight(met.weightKg);
+      }
+    }
+    setUnit(nextUnit);
+  }
+
+  const metric = toMetric({
+    unit,
+    heightCm: parseMeasurement(height),
+    weightKg: parseMeasurement(weight),
+    feet: parseMeasurement(feet),
+    inches: parseMeasurement(inches),
+    pounds: parseMeasurement(pounds),
+  });
+  const result = metric ? assessBmi(metric.heightCm, metric.weightKg) : null;
+  const isLogged = loggedToday.includes("checkin");
+
   return (
     <div className="tool-panel bmi-panel">
       <div className="panel-copy">
@@ -399,75 +362,211 @@ function BmiTool() {
         </span>
         <h3>Know your BMI range</h3>
         <p>
-          Use this as a starting point—not a diagnosis. Bodies are more nuanced than a single
-          number.
+          Adult screening ranges from the World Health Organization (WHO), calculated 100% on this
+          device. BMI is a population screening tool, not a measure of body composition or fitness.
         </p>
+        <div className="unit-toggle" role="group" aria-label="Measurement units">
+          <button
+            type="button"
+            className={unit === "metric" ? "active" : ""}
+            onClick={() => handleUnitToggle("metric")}
+          >
+            Metric (cm / kg)
+          </button>
+          <button
+            type="button"
+            className={unit === "imperial" ? "active" : ""}
+            onClick={() => handleUnitToggle("imperial")}
+          >
+            Imperial (ft / lb)
+          </button>
+        </div>
         <div className="input-pair">
-          <label>
-            Height <span>cm</span>
-            <input
-              type="number"
-              value={height}
-              min="80"
-              max="250"
-              onChange={(e) => setHeight(e.target.value)}
-            />
-          </label>
-          <label>
-            Weight <span>kg</span>
-            <input
-              type="number"
-              value={weight}
-              min="20"
-              max="300"
-              onChange={(e) => setWeight(e.target.value)}
-            />
-          </label>
+          {unit === "metric" ? (
+            <>
+              <label>
+                Height <span>cm</span>
+                <input
+                  type="number"
+                  value={height}
+                  min="80"
+                  max="250"
+                  onChange={(event) => setHeight(event.target.value)}
+                />
+              </label>
+              <label>
+                Weight <span>kg</span>
+                <input
+                  type="number"
+                  value={weight}
+                  min="20"
+                  max="300"
+                  onChange={(event) => setWeight(event.target.value)}
+                />
+              </label>
+            </>
+          ) : (
+            <>
+              <label>
+                Height <span>ft</span>
+                <input
+                  type="number"
+                  value={feet}
+                  min="3"
+                  max="8"
+                  onChange={(event) => setFeet(event.target.value)}
+                />
+              </label>
+              <label>
+                Inches <span>in</span>
+                <input
+                  type="number"
+                  value={inches}
+                  min="0"
+                  max="11"
+                  onChange={(event) => setInches(event.target.value)}
+                />
+              </label>
+              <label className="span-2">
+                Weight <span>lb</span>
+                <input
+                  type="number"
+                  value={pounds}
+                  min="44"
+                  max="660"
+                  onChange={(event) => setPounds(event.target.value)}
+                />
+              </label>
+            </>
+          )}
+        </div>
+        <div className="tool-action-row">
+          <button
+            type="button"
+            className="tool-inline-btn"
+            disabled={isLogged}
+            onClick={() => logAction("checkin")}
+          >
+            <Icon name="check" size={15} />
+            {isLogged ? "Daily Check-in Logged" : "Log Check-in · +25 pts"}
+          </button>
         </div>
       </div>
       <div className="bmi-result">
         <p>Your result</p>
-        <strong>{bmi ? bmi.toFixed(1) : "—"}</strong>
-        <span>{bmi ? category : "Enter valid measurements"}</span>
-        <div className="bmi-scale">
+        <strong>{result ? result.bmi.toFixed(1) : "—"}</strong>
+        <span className={result ? `bmi-status-tag ${result.band.badgeClass}` : ""}>
+          {result ? result.band.label : "Enter a valid adult range"}
+        </span>
+        <div className="bmi-scale" aria-hidden="true">
           <i className="scale-one" />
           <i className="scale-two" />
           <i className="scale-three" />
           <i className="scale-four" />
-          <b style={{ left: `${position}%` }} />
+          <b style={{ left: `${result ? result.marker : 4}%` }} />
         </div>
         <div className="scale-labels">
-          <span>Under</span>
-          <span>Healthy</span>
-          <span>Over</span>
-          <span>High</span>
+          <span>Under (&lt;18.5)</span>
+          <span>Healthy (18.5–24.9)</span>
+          <span>Over (25–29.9)</span>
+          <span>High (30+)</span>
         </div>
+        {result && (
+          <div className="bmi-delta-box">
+            {result.status === "healthy" ? (
+              <span className="delta-success">✓ Within standard healthy weight range</span>
+            ) : (
+              <span className="delta-note">
+                {result.status === "below" ? "Below" : "Above"} threshold by about{" "}
+                <strong>{formatWeight(result.deltaKg, unit)}</strong>
+              </span>
+            )}
+          </div>
+        )}
+        <p className="bmi-extra">
+          {result
+            ? `${result.band.note} At this height, healthy adult weights sit between ${formatWeight(result.healthyMinKg, unit)} and ${formatWeight(result.healthyMaxKg, unit)}.`
+            : "Height needs to sit between 80 and 250 cm (about 3 to 8 ft), and weight between 20 and 300 kg."}
+        </p>
       </div>
     </div>
   );
 }
 
 function BodyTool() {
+  const { logAction, loggedToday } = useStore();
   const [image, setImage] = useState<string | null>(null);
-  const [analyzed, setAnalyzed] = useState(false);
+  const [answers, setAnswers] = useState<FrameAnswers>({ silhouette: "", build: "", change: "" });
+  const [photoNote, setPhotoNote] = useState<string | null>(null);
+  const [result, setResult] = useState<ReturnType<typeof mixFromCheck>>(null);
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (image) URL.revokeObjectURL(image);
+    };
+  }, [image]);
+
   function handleFile(file?: File) {
     if (!file) return;
     setImage(URL.createObjectURL(file));
-    setAnalyzed(false);
+    setChecked(false);
+    setResult(null);
+    setPhotoNote(null);
   }
+
+  function clearPhoto(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (image) URL.revokeObjectURL(image);
+    setImage(null);
+    setPhotoNote(null);
+    setChecked(false);
+  }
+
+  async function analyze() {
+    setBusy(true);
+    let hint = null;
+    let note: string | null = null;
+    if (image) {
+      hint = await readSilhouette(image);
+      if (!hint) {
+        note =
+          "This photo didn’t yield a clear full-body silhouette. A plain, high-contrast background helps. The check still used your answers.";
+      }
+    }
+    const mix = mixFromCheck(answers, hint);
+    setPhotoNote(mix?.photoNote ?? note);
+    setResult(mix);
+    setChecked(true);
+    setBusy(false);
+  }
+
+  const isMoveLogged = loggedToday.includes("walk");
+
   return (
     <div className="tool-panel body-panel">
       <div className="upload-zone" onClick={() => fileRef.current?.click()}>
         {image ? (
-          <img src={image} alt="Uploaded for posture preview" />
+          <div className="photo-preview-wrap">
+            <img src={image} alt="Uploaded for private on-device silhouette check" />
+            <button
+              type="button"
+              className="photo-remove-btn"
+              onClick={clearPhoto}
+              title="Remove photo"
+            >
+              <Icon name="close" size={14} /> Remove
+            </button>
+          </div>
         ) : (
           <>
             <span>
               <Icon name="upload" size={30} />
             </span>
             <h3>Add a full-body photo</h3>
-            <p>Use a clear, front-facing image in good light.</p>
+            <p>Optional. Analyzed inside your browser canvas; never uploaded to any server.</p>
             <button type="button" className="small-button">
               Choose photo
             </button>
@@ -478,34 +577,98 @@ function BodyTool() {
           type="file"
           accept="image/*"
           hidden
-          onChange={(e) => handleFile(e.target.files?.[0])}
+          onChange={(event) => handleFile(event.target.files?.[0])}
         />
       </div>
       <div className="analysis-copy">
         <span className="tool-kicker">
-          <Icon name="body" /> Private on-device preview
+          <Icon name="body" /> Private on-device check
         </span>
-        <h3>Understand your frame</h3>
+        <h3>Choose a movement mix</h3>
         <p>
-          This demo checks visual proportions to suggest balanced movement categories. Your image
-          never leaves this page.
+          Answer from what you observe in the mirror. A photo, if you add one, only nudges the
+          suggestion. This is not a clinical diagnosis.
         </p>
-        {image && !analyzed && (
-          <button className="primary-button compact" onClick={() => setAnalyzed(true)}>
-            Analyze photo <Icon name="arrow" />
+        <div className="stack-fields">
+          <label>
+            Shoulders compared with hips
+            <select
+              value={answers.silhouette}
+              onChange={(event) =>
+                setAnswers((current) => ({
+                  ...current,
+                  silhouette: event.target.value as Silhouette | "",
+                }))
+              }
+            >
+              <option value="">Choose one</option>
+              <option value="narrow">Narrower shoulders (triangular / pear)</option>
+              <option value="even">About the same width (balanced frame)</option>
+              <option value="broad">Broader shoulders (athletic V / inverted)</option>
+            </select>
+          </label>
+          <label>
+            How you describe your natural build
+            <select
+              value={answers.build}
+              onChange={(event) =>
+                setAnswers((current) => ({ ...current, build: event.target.value as Build | "" }))
+              }
+            >
+              <option value="">Choose one</option>
+              <option value="lean">Lean — finer joints, lighter frame</option>
+              <option value="athletic">Athletic — responsive musculature</option>
+              <option value="solid">Solid — broader bone structure, naturally sturdy</option>
+            </select>
+          </label>
+          <label>
+            How your weight responds to routine changes
+            <select
+              value={answers.change}
+              onChange={(event) =>
+                setAnswers((current) => ({ ...current, change: event.target.value as Change | "" }))
+              }
+            >
+              <option value="">Choose one</option>
+              <option value="hard-gain">I struggle to gain weight or muscle</option>
+              <option value="adapts">Training and eating change me steadily</option>
+              <option value="holds">I hold on to weight easily</option>
+            </select>
+          </label>
+        </div>
+        <div className="action-button-row">
+          <button className="primary-button compact" type="button" onClick={analyze} disabled={busy}>
+            {busy ? "Checking on device…" : "Build my movement mix"} <Icon name="arrow" />
           </button>
+        </div>
+        {checked && !result && (
+          <p className="tool-inline-note">Please answer at least one question or add a clear full-body photo.</p>
         )}
-        {analyzed && (
+        {result && (
           <div className="analysis-result">
             <span>
               <Icon name="check" />
             </span>
             <div>
-              <strong>Balanced frame detected</strong>
-              <p>
-                Try a mix of mobility, functional strength and moderate cardio. Treat this as
-                general guidance only.
-              </p>
+              <strong>{result.title}</strong>
+              <p>{result.summary}</p>
+              <ul className="mix-list">
+                {result.moves.map((move) => (
+                  <li key={move}>{move}</li>
+                ))}
+              </ul>
+              {photoNote && <p className="photo-note-text">{photoNote}</p>}
+              <div className="tool-action-row mt-12">
+                <button
+                  type="button"
+                  className="tool-inline-btn"
+                  disabled={isMoveLogged}
+                  onClick={() => logAction("walk")}
+                >
+                  <Icon name="check" size={15} />
+                  {isMoveLogged ? "Movement Logged Today" : "Log Movement · +40 pts"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -515,28 +678,24 @@ function BodyTool() {
 }
 
 function DietTool() {
-  const [goal, setGoal] = useState("steady-energy");
-  const [preference, setPreference] = useState("vegetarian");
-  const plans: Record<string, { meal: string; note: string }[]> = {
-    "steady-energy": [
-      { meal: "Breakfast", note: "Vegetable poha, curd and a seasonal fruit" },
-      { meal: "Lunch", note: "Dal, brown rice, cucumber salad and roasted vegetables" },
-      { meal: "Snack", note: "Roasted chana with lemon water" },
-      { meal: "Dinner", note: "Paneer or tofu wrap with greens and mint chutney" },
-    ],
-    strength: [
-      { meal: "Breakfast", note: "Besan chilla, curd and a banana" },
-      { meal: "Lunch", note: "Rajma rice bowl with salad and seeds" },
-      { meal: "Snack", note: "Peanut chaat with fruit" },
-      { meal: "Dinner", note: "Palak paneer or tofu, roti and mixed vegetables" },
-    ],
-    "feel-lighter": [
-      { meal: "Breakfast", note: "Overnight oats with fruit and chia" },
-      { meal: "Lunch", note: "Millet khichdi with curd and crunchy salad" },
-      { meal: "Snack", note: "Buttermilk and a small handful of nuts" },
-      { meal: "Dinner", note: "Vegetable soup with moong chilla" },
-    ],
-  };
+  const { logAction, loggedToday, setToast } = useStore();
+  const [goal, setGoal] = useState<DietGoal>("steady-energy");
+  const [preference, setPreference] = useState<DietPreference>("vegetarian");
+  const [activity, setActivity] = useState<ActivityLevel>("moderate");
+  const [variant, setVariant] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const plan = buildDay(goal, preference, activity, variant % VARIANT_COUNT);
+  const isWaterLogged = loggedToday.includes("water");
+
+  function copyPlan() {
+    const text = formatMealPlanText(plan, goal, preference);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setToast("📋 Meal plan copied to clipboard!");
+    setTimeout(() => setCopied(false), 2400);
+  }
+
   return (
     <div className="tool-panel diet-panel">
       <div className="diet-controls">
@@ -544,93 +703,238 @@ function DietTool() {
           <Icon name="leaf" /> Flexible meal ideas
         </span>
         <h3>Build a simple day of eating</h3>
-        <p>Choose what matters today. We’ll suggest familiar, balanced meals—not rigid rules.</p>
+        <p>Every meal idea is bundled inside this static page. Adjust goals, preferences, or randomize variants.</p>
         <label>
-          Your focus
-          <select value={goal} onChange={(e) => setGoal(e.target.value)}>
-            <option value="steady-energy">Steady energy</option>
-            <option value="strength">Build strength</option>
-            <option value="feel-lighter">Feel lighter</option>
+          Your wellness focus
+          <select value={goal} onChange={(event) => setGoal(event.target.value as DietGoal)}>
+            <option value="steady-energy">Steady energy through the day</option>
+            <option value="strength">Build strength & muscle</option>
+            <option value="feel-lighter">Feel lighter & digestive ease</option>
           </select>
         </label>
         <label>
           Food preference
-          <select value={preference} onChange={(e) => setPreference(e.target.value)}>
-            <option value="vegetarian">Vegetarian</option>
-            <option value="vegan">Vegan-friendly</option>
-            <option value="flexible">Flexible</option>
+          <select
+            value={preference}
+            onChange={(event) => setPreference(event.target.value as DietPreference)}
+          >
+            <option value="vegetarian">Vegetarian (with dairy)</option>
+            <option value="vegan">Vegan-friendly (plant-based)</option>
+            <option value="flexible">Flexible (includes eggs/fish/chicken)</option>
           </select>
         </label>
+        <label>
+          Activity level today
+          <select value={activity} onChange={(event) => setActivity(event.target.value as ActivityLevel)}>
+            <option value="light">Light — mostly seated / desk work</option>
+            <option value="moderate">Moderate — walking or standard training</option>
+            <option value="high">High — long, demanding session or sports</option>
+          </select>
+        </label>
+        <div className="diet-button-row">
+          <button
+            className="small-button diet-shuffle"
+            type="button"
+            onClick={() => setVariant((value) => value + 1)}
+          >
+            <Icon name="refresh" size={14} /> Another idea
+          </button>
+          <button className="small-button" type="button" onClick={copyPlan}>
+            <Icon name="copy" size={14} /> {copied ? "Copied!" : "Copy plan"}
+          </button>
+        </div>
       </div>
       <div className="meal-plan">
         <div className="meal-plan-head">
           <div>
-            <small>One-day idea</small>
-            <strong>
-              {preference === "vegan"
-                ? "Vegan-friendly"
-                : preference === "flexible"
-                  ? "Flexible plate"
-                  : "Vegetarian plate"}
-            </strong>
+            <small>{plan.range} · educational estimate</small>
+            <strong>{plan.title}</strong>
           </div>
           <span>
             <Icon name="leaf" />
           </span>
         </div>
-        {plans[goal].map((item) => (
-          <div className="meal-row" key={item.meal}>
+        <div className="macro-bar">
+          <span className="macro-pill">Carbs: ~{plan.macros.carbs}%</span>
+          <span className="macro-pill">Protein: ~{plan.macros.protein}%</span>
+          <span className="macro-pill">Fats: ~{plan.macros.fats}%</span>
+          <span className="macro-pill water">💧 Water: {plan.macros.waterLiters}</span>
+        </div>
+        {plan.meals.map((item) => (
+          <div className="meal-row" key={item.slot}>
             <span>
               <Icon name="check" size={15} />
             </span>
             <div>
-              <strong>{item.meal}</strong>
-              <p>
-                {preference === "vegan"
-                  ? item.note
-                      .replaceAll("curd", "soy curd")
-                      .replaceAll("Paneer", "Tofu")
-                      .replaceAll("paneer", "tofu")
-                      .replaceAll("Buttermilk", "Coconut water")
-                  : item.note}
-              </p>
+              <strong>{item.slot}</strong>
+              <p>{item.note}</p>
             </div>
           </div>
         ))}
         <p className="diet-note">
-          Adjust portions to your appetite, activity and medical needs. Consult a qualified
-          dietitian for personalized care.
+          {plan.portion} Adjust for appetite, culture, and individual health needs.
         </p>
+        <div className="diet-footer-row">
+          <a className="diet-read" href="#article-plate">
+            Read plate guide <Icon name="arrow" size={14} />
+          </a>
+          <button
+            type="button"
+            className="tool-inline-btn"
+            disabled={isWaterLogged}
+            onClick={() => logAction("water")}
+          >
+            <Icon name="check" size={14} />
+            {isWaterLogged ? "Hydration Logged" : "Log Water · +15 pts"}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
-type ChatMessage = { role: "bot" | "user"; text: string };
-function ChatTool() {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "bot",
-      text: "Hi, I’m here to listen. What feels most important today—stress, sleep, motivation, or something else?",
-    },
-  ]);
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const text = input.trim();
-    if (!text) return;
-    const lower = text.toLowerCase();
-    let reply =
-      "Thank you for sharing that. A gentle next step could be to pause, name what you need, and choose one small action for the next ten minutes. What would feel manageable?";
-    if (lower.includes("sleep"))
-      reply =
-        "Sleep can affect everything else. Try dimming screens, keeping tomorrow’s tasks on paper, and taking five slow breaths. Has this been happening for more than a few nights?";
-    if (lower.includes("stress") || lower.includes("anxious"))
-      reply =
-        "That sounds like a lot to carry. Try grounding yourself: notice five things you see, four you feel, and three you hear. You don’t have to solve everything at once.";
-    setMessages((m) => [...m, { role: "user", text }, { role: "bot", text: reply }]);
-    setInput("");
+type ChatMessage = {
+  role: "bot" | "user";
+  text: string;
+  sources?: { id: string; title: string }[];
+  mode?: "local" | "model" | "fallback";
+  modelName?: string;
+};
+
+const OPENING_CHAT: ChatMessage = {
+  role: "bot",
+  text: "Hi, I’m here to listen. What feels most important today—stress, sleep, gentle movement, balanced meals, or building a small habit?",
+  mode: "local",
+};
+
+function loadChat(): ChatMessage[] {
+  try {
+    const raw = localStorage.getItem(CHAT_KEY) || localStorage.getItem("reptrackers.chat.v1");
+    if (!raw) return [OPENING_CHAT];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [OPENING_CHAT];
+    const messages = parsed.filter(
+      (item): item is ChatMessage =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        ((item as ChatMessage).role === "bot" || (item as ChatMessage).role === "user") &&
+        typeof (item as ChatMessage).text === "string",
+    );
+    return messages.length > 0 ? messages.slice(-40) : [OPENING_CHAT];
+  } catch {
+    return [OPENING_CHAT];
   }
+}
+
+function ChatTool() {
+  const { model, setModel, openArticle, setToast } = useStore();
+  const [input, setInput] = useState("");
+  const [pending, setPending] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([OPENING_CHAT]);
+  const [hydrated, setHydrated] = useState(false);
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMessages(loadChat());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) localStorage.setItem(CHAT_KEY, JSON.stringify(messages.slice(-40)));
+  }, [messages, hydrated]);
+
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
+  }, [messages, pending]);
+
+  async function handleSend(textToSend: string) {
+    const text = textToSend.trim();
+    if (!text || pending) return;
+    const history = messages;
+    setMessages((current) => [...current, { role: "user", text }]);
+    setInput("");
+    setPending(true);
+    const local = localAnswer(text, history);
+
+    try {
+      if (local.crisis || !model.useModel || !model.apiKey.trim()) {
+        setMessages((current) => [
+          ...current,
+          { role: "bot", text: local.text, sources: local.sources, mode: "local" },
+        ]);
+        return;
+      }
+      try {
+        const answer = await askModel(model, [...history, { role: "user", text }], local.context);
+        setMessages((current) => [
+          ...current,
+          {
+            role: "bot",
+            text: answer,
+            sources: local.sources,
+            mode: "model",
+            modelName: model.model,
+          },
+        ]);
+      } catch (error) {
+        const reason = explainModelError(error, model);
+        setMessages((current) => [
+          ...current,
+          {
+            role: "bot",
+            text: `${local.text}\n\n[Connected model note: ${reason}. Reply provided by the built-in offline wellness engine.]`,
+            sources: local.sources,
+            mode: "fallback",
+          },
+        ]);
+      }
+    } finally {
+      setPending(false);
+    }
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    handleSend(input);
+  }
+
+  async function runTestConnection() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const ping = await askModel(
+        model,
+        [{ role: "user", text: "Say 'Ready' in one word." }],
+        "System connectivity check.",
+      );
+      setTestResult({
+        ok: true,
+        msg: `Connection successful! Model response: "${ping.slice(0, 40)}"`,
+      });
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        msg: explainModelError(err, model),
+      });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  function copyTranscript() {
+    const lines = messages.map(
+      (m) => `${m.role === "user" ? "You" : "Mindful Companion"}: ${m.text}`,
+    );
+    navigator.clipboard.writeText(lines.join("\n\n"));
+    setToast("💬 Conversation copied to clipboard!");
+  }
+
+  const currentPreset = PROVIDER_PRESETS.find((p) => p.id === model.provider);
+  const badgeLabel = model.useModel && model.apiKey.trim() ? "Online LLM Active" : "Static Companion Active";
+
   return (
     <div className="tool-panel chat-panel">
       <div className="chat-head">
@@ -640,41 +944,238 @@ function ChatTool() {
         <div>
           <strong>Mindful companion</strong>
           <span>
-            <i /> Here to support you
+            <i /> {model.useModel && model.apiKey.trim() ? `Connected: ${model.model}` : "100% On this page (Offline & Private)"}
           </span>
         </div>
-        <span className="private-badge">
-          <Icon name="shield" size={15} /> Private chat
-        </span>
+        <div className="chat-head-actions">
+          <button
+            type="button"
+            className="chat-icon-btn"
+            onClick={copyTranscript}
+            title="Copy conversation"
+          >
+            <Icon name="copy" size={14} />
+          </button>
+          <span className="private-badge">
+            <Icon name="shield" size={15} /> {badgeLabel}
+          </span>
+        </div>
       </div>
-      <div className="messages">
+
+      <div className="messages" ref={threadRef} aria-live="polite">
         {messages.map((message, index) => (
-          <div className={`message ${message.role}`} key={index}>
-            {message.text}
+          <div className={`message ${message.role}`} key={`${message.role}-${index}`}>
+            <div className="message-content">{message.text}</div>
+            {message.role === "bot" && message.mode && (
+              <div className="message-meta">
+                {message.mode === "model"
+                  ? `✦ ${message.modelName || "Connected model"}`
+                  : message.mode === "fallback"
+                    ? "Offline companion (model unreachable)"
+                    : "Included static companion"}
+              </div>
+            )}
+            {message.sources && message.sources.length > 0 && (
+              <div className="source-row">
+                <span className="source-label">Related guide:</span>
+                {message.sources.map((source) => (
+                  <button key={source.id} type="button" onClick={() => openArticle(source.id)}>
+                    <Icon name="link" size={12} /> {source.title}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ))}
+        {pending && <div className="message bot pending-pulse">Reflecting thoughtfully…</div>}
       </div>
+
+      <div className="quick-prompts-row" aria-label="Quick question prompts">
+        {SUGGESTED_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            className="quick-chip"
+            disabled={pending}
+            onClick={() => handleSend(prompt)}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+
       <form className="chat-input" onSubmit={submit}>
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Share what’s on your mind…"
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="Share what’s on your mind (e.g., sleep, stress, walking)..."
           aria-label="Chat message"
+          disabled={pending}
         />
-        <button aria-label="Send message">
+        <button aria-label="Send message" disabled={pending || !input.trim()}>
           <Icon name="arrow" />
         </button>
       </form>
+
+      <details className="chat-settings">
+        <summary>
+          <span>
+            <Icon name="spark" size={15} /> Connect Your Own LLM Model (Optional)
+          </span>
+          <small>{model.useModel ? "Configured" : "Offline mode"}</small>
+        </summary>
+        <div className="settings-body">
+          <p className="settings-desc">
+            The page ships with a comprehensive built-in wellness coach that requires no API keys or
+            network. You can optionally connect your own LLM provider. Your browser calls the endpoint
+            directly; keys remain in your browser’s local storage.
+          </p>
+
+          <label className="check-row">
+            <input
+              type="checkbox"
+              checked={model.useModel}
+              onChange={(event) => setModel({ useModel: event.target.checked })}
+            />
+            <span>Enable connected LLM for conversation responses</span>
+          </label>
+
+          <label>
+            Provider Preset
+            <select
+              value={model.provider}
+              onChange={(event) => {
+                const id = event.target.value as LLMProviderId;
+                const preset = PROVIDER_PRESETS.find((p) => p.id === id);
+                if (preset && id !== "custom") {
+                  setModel({
+                    provider: id,
+                    baseUrl: preset.baseUrl,
+                    model: preset.model,
+                  });
+                } else {
+                  setModel({ provider: id });
+                }
+                setTestResult(null);
+              }}
+            >
+              {PROVIDER_PRESETS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {currentPreset && (
+            <div className="preset-info-banner">
+              <span>{currentPreset.description}</span>
+              {currentPreset.keyUrl && (
+                <a
+                  href={currentPreset.keyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="preset-key-link"
+                >
+                  Get API Key ↗
+                </a>
+              )}
+            </div>
+          )}
+
+          <label>
+            Endpoint URL
+            <input
+              value={model.baseUrl}
+              autoComplete="off"
+              placeholder="https://api.groq.com/openai/v1"
+              onChange={(event) => setModel({ baseUrl: event.target.value })}
+            />
+          </label>
+
+          <label>
+            Model Identifier
+            <input
+              value={model.model}
+              placeholder="e.g. llama-3.3-70b-versatile or gemini-2.0-flash"
+              onChange={(event) => setModel({ model: event.target.value })}
+            />
+          </label>
+
+          <label>
+            API Key
+            <div className="key-input-wrap">
+              <input
+                type={showKey ? "text" : "password"}
+                value={model.apiKey}
+                autoComplete="off"
+                placeholder={model.provider === "ollama" ? "Not required for local Ollama" : "sk-..."}
+                onChange={(event) => setModel({ apiKey: event.target.value })}
+              />
+              <button
+                type="button"
+                className="key-toggle-btn"
+                onClick={() => setShowKey((s) => !s)}
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+          </label>
+
+          <div className="settings-actions">
+            <button
+              className="small-button"
+              type="button"
+              disabled={testing || (!model.apiKey.trim() && model.provider !== "ollama")}
+              onClick={runTestConnection}
+            >
+              {testing ? "Testing…" : "Test API Connection"}
+            </button>
+            <button
+              className="small-button text-danger"
+              type="button"
+              onClick={() => {
+                if (window.confirm("Clear this chat conversation?")) {
+                  setMessages([OPENING_CHAT]);
+                  localStorage.removeItem(CHAT_KEY);
+                  setToast("Chat cleared.");
+                }
+              }}
+            >
+              <Icon name="trash" size={13} /> Clear chat
+            </button>
+          </div>
+
+          {testResult && (
+            <div className={`test-result-box ${testResult.ok ? "is-ok" : "is-err"}`}>
+              {testResult.msg}
+            </div>
+          )}
+        </div>
+      </details>
+
       <p className="chat-note">
-        For general wellbeing support only. If you may harm yourself or someone else, contact local
-        emergency services now.
+        For general wellbeing encouragement only. In an emergency or crisis, please contact local
+        emergency services immediately (988 in the US / AASRA 98204 66726 in India).
       </p>
     </div>
   );
 }
 
+const toolTabs: {
+  id: ToolId;
+  icon: "calculator" | "camera" | "leaf" | "message";
+  title: string;
+  detail: string;
+}[] = [
+  { id: "bmi", icon: "calculator", title: "BMI calculator", detail: "Check your range" },
+  { id: "body", icon: "camera", title: "Body movement mix", detail: "On-device check" },
+  { id: "diet", icon: "leaf", title: "Diet suggestion", detail: "Plan a balanced day" },
+  { id: "chat", icon: "message", title: "Wellness chat", detail: "Talk things through" },
+];
+
 function Tools() {
-  const [active, setActive] = useState<"bmi" | "body" | "diet" | "chat">("bmi");
+  const { tool, selectTool } = useStore();
   return (
     <section className="tools-section section" id="tools">
       <div className="tools-heading">
@@ -685,40 +1186,28 @@ function Tools() {
         <p>Useful, judgment-free tools designed to give you clarity and a simple next step.</p>
       </div>
       <div className="tool-tabs" role="tablist">
-        <button className={active === "bmi" ? "active" : ""} onClick={() => setActive("bmi")}>
-          <Icon name="calculator" />
-          <span>
-            <strong>BMI calculator</strong>
-            <small>Check your range</small>
-          </span>
-        </button>
-        <button className={active === "body" ? "active" : ""} onClick={() => setActive("body")}>
-          <Icon name="camera" />
-          <span>
-            <strong>Body type</strong>
-            <small>Photo-based preview</small>
-          </span>
-        </button>
-        <button className={active === "diet" ? "active" : ""} onClick={() => setActive("diet")}>
-          <Icon name="leaf" />
-          <span>
-            <strong>Diet suggestion</strong>
-            <small>Plan a balanced day</small>
-          </span>
-        </button>
-        <button className={active === "chat" ? "active" : ""} onClick={() => setActive("chat")}>
-          <Icon name="message" />
-          <span>
-            <strong>Wellness chat</strong>
-            <small>Talk things through</small>
-          </span>
-        </button>
+        {toolTabs.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={tool === item.id}
+            className={tool === item.id ? "active" : ""}
+            onClick={() => selectTool(item.id)}
+          >
+            <Icon name={item.icon} />
+            <span>
+              <strong>{item.title}</strong>
+              <small>{item.detail}</small>
+            </span>
+          </button>
+        ))}
       </div>
-      {active === "bmi" ? (
+      {tool === "bmi" ? (
         <BmiTool />
-      ) : active === "body" ? (
+      ) : tool === "body" ? (
         <BodyTool />
-      ) : active === "diet" ? (
+      ) : tool === "diet" ? (
         <DietTool />
       ) : (
         <ChatTool />
@@ -728,14 +1217,58 @@ function Tools() {
 }
 
 function Community() {
+  const {
+    progress,
+    loggedToday,
+    setName,
+    logAction,
+    toggleChallenge,
+    resetProgress,
+    importProgress,
+    setToast,
+  } = useStore();
+  const summary = rankSummary(progress.points);
+  const board = leaders(progress.points, progress.name || "You", progress.streak);
+  const tier = getHabitTier(progress.points);
+
+  function exportBackup() {
+    const json = exportProgressJson(progress);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `reptrackers-backup-${todayKey()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setToast("💾 On-device backup file downloaded!");
+  }
+
+  function importBackup() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".json,application/json";
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const imported = importProgressJson(text);
+        importProgress(imported);
+      } catch {
+        alert("Invalid backup JSON file.");
+      }
+    };
+    input.click();
+  }
+
   return (
     <section className="community section" id="leaderboard">
       <div className="community-copy">
         <p className="eyebrow">Community challenge</p>
         <h2>Consistency beats intensity.</h2>
         <p>
-          Earn points for healthy actions—taking a walk, drinking water, checking in with yourself,
-          or supporting a friend.
+          Log a healthy action on this device. Points, streaks, and your pledge stay in the browser.
+          The names beside you are a sample board shipped with the site.
         </p>
         <div className="challenge-card">
           <span>
@@ -744,11 +1277,43 @@ function Community() {
           <div>
             <small>This week’s challenge</small>
             <strong>20 mindful minutes</strong>
-            <p>1,284 people have joined</p>
+            <p>
+              {progress.joinedChallenge
+                ? "Saved on this device ✓"
+                : `${SAMPLE_CHALLENGE_JOINED.toLocaleString()} people in the published sample`}
+            </p>
           </div>
-          <button>
-            Join <Icon name="arrow" size={18} />
+          <button type="button" aria-pressed={progress.joinedChallenge} onClick={toggleChallenge}>
+            {progress.joinedChallenge ? "Joined" : "Join"}{" "}
+            {progress.joinedChallenge ? <Icon name="check" size={16} /> : <Icon name="arrow" size={18} />}
           </button>
+        </div>
+
+        <div className="daily-meter-box">
+          <div className="daily-meter-head">
+            <span>Today’s Habit Progress</span>
+            <strong>
+              {loggedToday.length} of {ACTIONS.length} completed ({Math.round((loggedToday.length / ACTIONS.length) * 100)}%)
+            </strong>
+          </div>
+          <div className="daily-meter-track">
+            <div
+              className="daily-meter-fill"
+              style={{ width: `${(loggedToday.length / ACTIONS.length) * 100}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="action-grid">
+          {ACTIONS.map((action) => {
+            const done = loggedToday.includes(action.id);
+            return (
+              <button key={action.id} type="button" disabled={done} onClick={() => logAction(action.id)}>
+                {action.label}
+                <small>{done ? "Logged today ✓" : `+${action.points} · ${action.detail}`}</small>
+              </button>
+            );
+          })}
         </div>
       </div>
       <div className="leaderboard-card">
@@ -759,26 +1324,54 @@ function Community() {
             </span>
             <h3>Healthy habits board</h3>
           </div>
-          <small>This week</small>
+          <div className="tier-tag">
+            <span>{tier.badge}</span>
+            <small>{tier.name}</small>
+          </div>
         </div>
-        {leaderboard.map((person, index) => (
-          <div className="leader-row" key={person.name}>
+        {board.map((person, index) => (
+          <div className={person.you ? "leader-row is-you" : "leader-row"} key={`${person.name}-${index}`}>
             <b>{index + 1}</b>
             <span className="avatar">{person.initials}</span>
             <div>
-              <strong>{person.name}</strong>
+              <strong>{person.you ? `${person.name} (you)` : person.name}</strong>
               <small>{person.streak} day streak</small>
             </div>
             <span>{person.points.toLocaleString()} pts</span>
           </div>
         ))}
         <div className="your-rank">
-          <span>38</span>
+          <span>{summary.rank}</span>
           <div>
-            <strong>You</strong>
-            <small>Three actions from the top 30</small>
+            <input
+              className="name-input"
+              aria-label="Name stored on this device"
+              value={progress.name}
+              maxLength={24}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <small>
+              {summary.note}. #{summary.rank} of {summary.field}
+            </small>
           </div>
-          <b>1,240 pts</b>
+          <b>{progress.points.toLocaleString()} pts</b>
+        </div>
+        <div className="leaderboard-footer-actions">
+          <button className="text-button" type="button" onClick={exportBackup}>
+            <Icon name="download" size={13} /> Export Backup
+          </button>
+          <button className="text-button" type="button" onClick={importBackup}>
+            <Icon name="upload" size={13} /> Import Backup
+          </button>
+          <button
+            className="text-button danger"
+            type="button"
+            onClick={() => {
+              if (window.confirm("Reset the on-device score, streak, challenge, and pledge?")) resetProgress();
+            }}
+          >
+            Reset on-device score
+          </button>
         </div>
       </div>
     </section>
@@ -786,7 +1379,15 @@ function Community() {
 }
 
 function Pledge() {
-  const [pledged, setPledged] = useState(false);
+  const { progress, togglePledge } = useStore();
+  const pledged = Boolean(progress.pledgedAt);
+  const date = progress.pledgedAt
+    ? new Date(progress.pledgedAt).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
   return (
     <section className="pledge-section section" id="pledge">
       <div className="pledge-mark">
@@ -800,10 +1401,10 @@ function Pledge() {
       </h2>
       <p>
         {pledged
-          ? "Come back tomorrow and take one more small step."
-          : "Join 12,480 people choosing sustainable wellbeing—one day at a time."}
+          ? `Saved on this device${date ? ` on ${date}` : ""}. Come back tomorrow and take one more small step.`
+          : `Join ${SAMPLE_PLEDGE_COUNT.toLocaleString()} people choosing sustainable wellbeing—one day at a time.`}
       </p>
-      <button className={pledged ? "pledged" : ""} onClick={() => setPledged(!pledged)}>
+      <button className={pledged ? "pledged" : ""} type="button" onClick={togglePledge}>
         {pledged ? (
           <>
             <Icon name="check" /> Pledge taken
@@ -818,31 +1419,9 @@ function Pledge() {
   );
 }
 
-const articles = [
-  {
-    category: "Nutrition",
-    title: "Building a balanced plate without counting everything",
-    time: "6 min read",
-    color: "article-green",
-    icon: "leaf",
-  },
-  {
-    category: "Mental wellbeing",
-    title: "A five-minute reset for overwhelming days",
-    time: "4 min read",
-    color: "article-purple",
-    icon: "brain",
-  },
-  {
-    category: "Movement",
-    title: "Why walking still counts as a real workout",
-    time: "5 min read",
-    color: "article-orange",
-    icon: "target",
-  },
-] as const;
-
 function Articles() {
+  const [all, setAll] = useState(false);
+  const visible = all ? articles : articles.filter((article) => article.featured);
   return (
     <section className="articles section" id="articles">
       <div className="section-heading">
@@ -850,22 +1429,22 @@ function Articles() {
           <p className="eyebrow">Read more</p>
           <h2>Health, explained simply.</h2>
         </div>
-        <a href="#more">
-          Browse all articles <Icon name="arrow" size={18} />
-        </a>
+        <button type="button" onClick={() => setAll((value) => !value)}>
+          {all ? "Show the featured three" : "Browse all articles"} <Icon name="arrow" size={18} />
+        </button>
       </div>
       <div className="article-grid">
-        {articles.map((article, index) => (
-          <article key={article.title}>
+        {visible.map((article) => (
+          <article key={article.id}>
             <div className={`article-art ${article.color}`}>
-              <span>0{index + 1}</span>
+              <span>{article.id.slice(0, 2).toUpperCase()}</span>
               <Icon name={article.icon} size={54} />
             </div>
             <small>{article.category}</small>
             <h3>{article.title}</h3>
             <div>
               <span>{article.time}</span>
-              <a href="#more" aria-label={`Read ${article.title}`}>
+              <a href={`#article-${article.id}`} aria-label={`Read ${article.title}`}>
                 <Icon name="arrow" />
               </a>
             </div>
@@ -883,61 +1462,121 @@ function More() {
         <p className="eyebrow light">Trust matters</p>
         <h2>Built responsibly, not just intelligently.</h2>
         <p>
-          Our health tools are designed to inform and encourage. They never replace a qualified
-          medical professional.
+          These notes ship with the page. The tools inform and encourage. They never replace a
+          qualified clinician.
         </p>
       </div>
       <div className="more-grid">
-        <article>
-          <Icon name="shield" />
-          <h3>Privacy policy</h3>
-          <p>We minimize data collection and keep photo previews on your device.</p>
-          <a href="#top">
-            Read policy <Icon name="arrow" size={16} />
-          </a>
-        </article>
-        <article>
-          <Icon name="spark" />
-          <h3>Ethical AI</h3>
-          <p>Clear limitations, human-first language and no hidden medical claims.</p>
-          <a href="#top">
-            Our approach <Icon name="arrow" size={16} />
-          </a>
-        </article>
-        <article>
-          <Icon name="users" />
-          <h3>Case studies</h3>
-          <p>See how small habit programs help communities build healthy momentum.</p>
-          <a href="#top">
-            View stories <Icon name="arrow" size={16} />
-          </a>
-        </article>
-        <article>
-          <Icon name="target" />
-          <h3>Risk register</h3>
-          <p>How we identify, review and respond to possible harms in health technology.</p>
-          <a href="#top">
-            Review risks <Icon name="arrow" size={16} />
-          </a>
-        </article>
-        <article>
-          <Icon name="heart" />
-          <h3>Code of ethics</h3>
-          <p>The principles behind respectful language, inclusive choices and human oversight.</p>
-          <a href="#top">
-            Read the code <Icon name="arrow" size={16} />
-          </a>
-        </article>
-        <article>
-          <Icon name="check" />
-          <h3>Action framework</h3>
-          <p>A transparent path from ethical analysis to accountable product decisions.</p>
-          <a href="#top">
-            See framework <Icon name="arrow" size={16} />
-          </a>
-        </article>
+        {docs.map((doc) => (
+          <article key={doc.id}>
+            <Icon name={doc.icon} />
+            <h3>{doc.title}</h3>
+            <p>{doc.summary}</p>
+            <a href={`#doc-${doc.id}`}>
+              Read <Icon name="arrow" size={16} />
+            </a>
+          </article>
+        ))}
       </div>
     </section>
+  );
+}
+
+function Blocks({ blocks }: { blocks: Block[] }) {
+  return (
+    <div className="prose">
+      {blocks.map((block, index) => {
+        if (block.type === "h") return <h3 key={index}>{block.text}</h3>;
+        if (block.type === "p") return <p key={index}>{block.text}</p>;
+        const List = block.type === "ol" ? "ol" : "ul";
+        return (
+          <List key={index}>
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex}>{item}</li>
+            ))}
+          </List>
+        );
+      })}
+    </div>
+  );
+}
+
+function Sheet({ title, kicker, children }: { title: string; kicker: string; children: ReactNode }) {
+  const { closeOverlay } = useStore();
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeOverlay();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previous;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [closeOverlay]);
+  return (
+    <div className="overlay" onClick={closeOverlay}>
+      <div
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="sheet-head">
+          <div>
+            <p className="eyebrow">{kicker}</p>
+            <h2>{title}</h2>
+          </div>
+          <button ref={closeRef} className="sheet-close" type="button" onClick={closeOverlay} aria-label="Close">
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="sheet-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Reader() {
+  const { articleId, docId } = useStore();
+  if (!articleId && !docId) return null;
+  const article = articleId ? articleById(articleId) : undefined;
+  const doc = docId ? docById(docId) : undefined;
+  if (articleId) {
+    return (
+      <Sheet title={article?.title ?? "That article isn’t in this build"} kicker={article?.category ?? "Articles"}>
+        {article ? (
+          <>
+            <p className="sheet-summary">{article.summary}</p>
+            <Blocks blocks={article.blocks} />
+          </>
+        ) : (
+          <p className="prose">The link doesn’t match an article included with this page.</p>
+        )}
+      </Sheet>
+    );
+  }
+  return (
+    <Sheet title={doc?.title ?? "That note isn’t in this build"} kicker="Trust">
+      {doc ? <Blocks blocks={doc.blocks} /> : <p className="prose">The link doesn’t match a note included with this page.</p>}
+    </Sheet>
+  );
+}
+
+function ToastBanner() {
+  const { toast, setToast } = useStore();
+  if (!toast) return null;
+  return (
+    <div className="toast-banner" role="status" aria-live="polite">
+      <span>{toast}</span>
+      <button type="button" onClick={() => setToast(null)} aria-label="Close toast">
+        <Icon name="close" size={13} />
+      </button>
+    </div>
   );
 }
 
@@ -947,7 +1586,7 @@ function Footer() {
       <div className="footer-top">
         <div>
           <Logo />
-          <p>Small steps. Stronger lives.</p>
+          <p>Small steps. Stronger lives. 100% Static web experience with on-device privacy.</p>
         </div>
         <a href="#top">
           Back to top <Icon name="arrow" size={18} />
@@ -961,7 +1600,7 @@ function Footer() {
   );
 }
 
-export default function App() {
+function Shell() {
   return (
     <div id="top">
       <Header />
@@ -991,7 +1630,7 @@ export default function App() {
             </div>
             <div className="trust-row">
               <span>
-                <Icon name="shield" size={18} /> Privacy-first
+                <Icon name="shield" size={18} /> 100% Static & Private
               </span>
               <span>
                 <Icon name="heart" size={18} /> Judgment-free
@@ -1012,6 +1651,16 @@ export default function App() {
         <More />
       </main>
       <Footer />
+      <Reader />
+      <ToastBanner />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <StoreProvider>
+      <Shell />
+    </StoreProvider>
   );
 }
