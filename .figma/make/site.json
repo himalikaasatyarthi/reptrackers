@@ -1,0 +1,10 @@
+{
+  "description": "Helps users track wellness with a BMI calculator, body type assessment, chatbot guidance, and other tools for personalized health insights.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
